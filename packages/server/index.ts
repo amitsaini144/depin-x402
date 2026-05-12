@@ -1,25 +1,42 @@
 import express from 'express'
+import dotenv from 'dotenv'
+
+dotenv.config()
+
+const PORT = parseInt(process.env.PORT ?? '3000')
+const FACILITATOR_URL = process.env.FACILITATOR_URL ?? 'http://localhost:4000'
+const RESOURCE_URL =
+    process.env.RESOURCE_URL ??
+    (process.env.RAILWAY_PUBLIC_DOMAIN
+        ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}/api/data`
+        : `http://localhost:${PORT}/api/data`)
+const TREASURY = process.env.TREASURY
+const OPERATOR_PUBKEY = process.env.OPERATOR_ADDRESS
+const SOLANA_NETWORK = process.env.SOLANA_NETWORK
+const SOLANA_GENESIS_HASH = process.env.SOLANA_GENESIS_HASH
+const USDC_MINT = process.env.USDC_MINT
+const PRICE_USDC = parseFloat(process.env.PRICE_USDC ?? '0.001')
 
 const app = express()
 app.use(express.json())
 
-const PRICE_USDC = 0.001
-const TREASURY = 'C9rwmkp5HC4XyhZDwJ7h39tDwVyv8CqRzEJvpzQFPV1L'
-const OPERATOR_PUBKEY = 'C9rwmkp5HC4XyhZDwJ7h39tDwVyv8CqRzEJvpzQFPV1L'
+app.get('/health', (_req, res) => {
+    res.json({ status: 'ok', network: SOLANA_NETWORK, ts: new Date().toISOString() })
+})
 
 app.get('/api/data', async (req, res) => {
     const payment = req.headers['x-payment']
 
     const requirements = {
         scheme: 'exact',
-        network: 'solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1',
-        maxAmountRequired: String(PRICE_USDC * 1_000_000),
-        resource: 'http://localhost:3000/api/data',
+        network: `solana:${SOLANA_GENESIS_HASH}`,
+        maxAmountRequired: String(Math.round(PRICE_USDC * 1_000_000)),
+        resource: RESOURCE_URL,
         description: 'Pay per API call',
         mimeType: 'application/json',
         payTo: TREASURY,
         maxTimeoutSeconds: 300,
-        asset: '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU',
+        asset: USDC_MINT,
     }
 
     if (!payment) {
@@ -37,9 +54,8 @@ app.get('/api/data', async (req, res) => {
             resource: requirements.resource,
         }
 
-        // Verify
         console.log('→ Calling verify...')
-        const verifyRes = await fetch('http://localhost:4000/verify', {
+        const verifyRes = await fetch(`${FACILITATOR_URL}/verify`, {
             method: 'POST',
             headers: {
                 'content-type': 'application/json',
@@ -56,9 +72,8 @@ app.get('/api/data', async (req, res) => {
             return res.status(402).json({ error: invalidReason ?? 'Payment verification failed' })
         }
 
-        // Settle
         console.log('→ Calling settle...')
-        const settleRes = await fetch('http://localhost:4000/settle', {
+        const settleRes = await fetch(`${FACILITATOR_URL}/settle`, {
             method: 'POST',
             headers: {
                 'content-type': 'application/json',
@@ -81,9 +96,9 @@ app.get('/api/data', async (req, res) => {
         })
 
     } catch (e: any) {
-        console.error('❌ Server error:', e.message)
+        console.error('Server error:', e.message)
         res.status(500).json({ error: e.message })
     }
 })
 
-app.listen(3000, () => console.log('Server running on :3000'))
+app.listen(PORT, () => console.log(`Server running on :${PORT}`))
