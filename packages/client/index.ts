@@ -59,7 +59,7 @@ async function payAndFetch(url: string) {
   const accept = requirements.accepts[0]
 
   // Step B: build payment payload matching facilitator/payment.ts schema
-  const nonce    = crypto.randomUUID()
+  const nonce = crypto.randomBytes(16).toString('hex').slice(0, 16)
   const amount   = Number(accept.maxAmountRequired)
   const resource = accept.resource
 

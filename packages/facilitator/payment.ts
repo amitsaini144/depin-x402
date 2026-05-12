@@ -21,6 +21,7 @@ import { Program, AnchorProvider, BN } from "@coral-xyz/anchor";
 import bs58 from "bs58";
 import settlementIdl from "./idl/settlement_program.json";
 import registryIdl from "./idl/operator_registry.json";
+import crypto from "node:crypto";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -50,10 +51,7 @@ export interface VerifyOptions {
 // Singleton connection + provider (mirrors index.ts setup)
 // ---------------------------------------------------------------------------
 
-const RPC_URL =
-  process.env.HELIUS_RPC_URL ??
-  process.env.SOLANA_RPC_URL ??
-  "https://api.devnet.solana.com";
+const RPC_URL = process.env.HELIUS_RPC_URL
 
 export const connection = new Connection(RPC_URL, "confirmed");
 
@@ -92,8 +90,13 @@ const SETTLEMENT_PROGRAM_ID = new PublicKey(
 );
 
 export function getPaymentReceiptPDA(nonce: string): [PublicKey, number] {
+  const nonceHash = crypto
+    .createHash('sha256')
+    .update(nonce)
+    .digest()
+    .slice(0, 32);
   return PublicKey.findProgramAddressSync(
-    [Buffer.from("receipt"), Buffer.from(nonce)],
+    [Buffer.from("receipt"), nonceHash],
     SETTLEMENT_PROGRAM_ID
   );
 }
@@ -169,19 +172,6 @@ export async function verifyPayment(
     return {
       valid: false,
       invalidReason: `Insufficient amount: got ${payload.amount}, need ${opts.requiredAmount}`,
-      payer: payload.payer,
-      amount: payload.amount,
-      nonce: payload.nonce,
-      signature: payload.signature,
-      resource: payload.resource,
-    };
-  }
-
-  // Resource check (optional — resource field in payload must match what we expect)
-  if (payload.resource && payload.resource !== opts.resource) {
-    return {
-      valid: false,
-      invalidReason: `Resource mismatch: got '${payload.resource}', expected '${opts.resource}'`,
       payer: payload.payer,
       amount: payload.amount,
       nonce: payload.nonce,

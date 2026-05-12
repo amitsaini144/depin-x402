@@ -45,7 +45,7 @@ export function Topbar({ onRefresh, loading, lastRefresh }: TopbarProps) {
             <Zap size={14} className="text-[#080B10]" />
           </div>
           <span className="font-mono text-sm font-semibold text-gradient-cyan hidden sm:flex items-baseline gap-1.5">
-            <span>SettLd</span>
+            <span>Settld</span>
             <span className="text-[10px] font-normal text-dim tracking-wider">DePIN x402</span>
           </span>
         </div>

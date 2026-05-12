@@ -145,7 +145,7 @@ export default function DashboardPage() {
         {/* Footer */}
         <footer className="pt-4 border-t border-line flex items-center justify-between">
           <span className="font-mono text-[10px] text-dim">
-            SettLd · DePIN x402 · Solana Devnet
+            Settld · DePIN x402 · Solana Devnet
           </span>
           <div className="flex items-center gap-3">
             <a

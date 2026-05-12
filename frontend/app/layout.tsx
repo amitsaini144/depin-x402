@@ -17,8 +17,8 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "SettLd — DePIN x402 Operator Dashboard",
-  description: "SettLd · DePIN facilitator network dashboard for x402 on Solana",
+  title: "Settld — DePIN x402 Operator Dashboard",
+  description: "Settld · DePIN facilitator network dashboard for x402 on Solana",
 };
 
 export default function RootLayout({
