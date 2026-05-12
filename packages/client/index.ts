@@ -1,15 +1,17 @@
-import { Connection, Keypair, PublicKey, Transaction } from '@solana/web3.js'
-import { getAssociatedTokenAddress, createTransferInstruction } from '@solana/spl-token'
+import { Connection, Keypair, PublicKey } from '@solana/web3.js'
 import { Program, AnchorProvider, Wallet } from '@coral-xyz/anchor'
 import bs58 from 'bs58'
+import crypto from 'crypto'
 import fs from 'fs'
+import os from 'os'
+import path from 'path'
 import operatorIdl from './operator_registry.json'
 
 const REGISTRY_PROGRAM_ID = new PublicKey('38X2K9cy8m4LnvtRmhFWs6TRuxCZV24znbBqCDJaAPXT')
-const USDC_MINT_DEVNET    = new PublicKey('4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU')
 
 const connection = new Connection('https://api.devnet.solana.com', 'confirmed')
-const secret     = JSON.parse(fs.readFileSync(`${process.env.HOME}/.config/solana/id.json`, 'utf-8'))
+const keyPath    = path.join(os.homedir(), '.config', 'solana', 'id.json')
+const secret     = JSON.parse(fs.readFileSync(keyPath, 'utf-8'))
 const payer      = Keypair.fromSecretKey(Uint8Array.from(secret))
 const wallet     = new Wallet(payer)
 const provider   = new AnchorProvider(connection, wallet, { commitment: 'confirmed' })
@@ -17,10 +19,8 @@ const registryProg = new Program(operatorIdl as any, provider)
 
 // ─── Step 8: fetch operators from chain and pick best one ────────────────────
 async function getBestFacilitator(): Promise<{ url: string, pubkey: string }> {
-  // Fetch all OperatorRecord accounts from the registry program
   const all = await (registryProg.account as any).operatorRecord.all()
 
-  // Filter active only, sort by stake descending
   const active = all
     .filter((o: any) => o.account.active)
     .sort((a: any, b: any) => b.account.stake.toNumber() - a.account.stake.toNumber())
@@ -58,41 +58,42 @@ async function payAndFetch(url: string) {
   const requirements = await res.json() as any
   const accept = requirements.accepts[0]
 
-  // Step B: build USDC transfer transaction
-  const payTo  = new PublicKey(accept.payTo)
-  const amount = BigInt(accept.maxAmountRequired)
+  // Step B: build payment payload matching facilitator/payment.ts schema
+  const nonce    = crypto.randomUUID()
+  const amount   = Number(accept.maxAmountRequired)
+  const resource = accept.resource
 
-  const fromATA = await getAssociatedTokenAddress(USDC_MINT_DEVNET, payer.publicKey)
-  const toATA   = await getAssociatedTokenAddress(USDC_MINT_DEVNET, payTo)
+  // Signature over (nonce|payer|amount|resource). Facilitator's verifyPayment
+  // currently doesn't crypto-verify this, but keeping it deterministic per
+  // request leaves room to add ed25519 verification later without a re-design.
+  const sigBytes = crypto
+    .createHash('sha256')
+    .update(`${nonce}|${payer.publicKey.toBase58()}|${amount}|${resource}`)
+    .digest()
 
-  const tx = new Transaction()
-  tx.add(createTransferInstruction(fromATA, toATA, payer.publicKey, amount))
-  tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash
-  tx.feePayer = payer.publicKey
-  tx.sign(payer)
-
-  // Step C: encode signed tx
   const paymentPayload = {
-    x402Version: 1,
-    scheme:      'exact',
-    network:     accept.network,
+    scheme:  'exact',
+    network: accept.network,
     payload: {
-      from:        payer.publicKey.toBase58(),
-      signature:   bs58.encode(tx.signatures[0].signature!),
-      transaction: tx.serialize({ requireAllSignatures: false }).toString('base64'),
-    }
+      signature: bs58.encode(sigBytes),
+      payer:     payer.publicKey.toBase58(),
+      amount,
+      nonce,
+      resource,
+    },
   }
   const encoded = Buffer.from(JSON.stringify(paymentPayload)).toString('base64')
 
-  // Step D: retry with payment — using the dynamically selected facilitator
+  // Step C: retry with payment
   const paid = await fetch(url, {
     headers: {
-      'x-payment':          encoded,
-      'x-facilitator-url':  FACILITATOR_URL,
-      'x-operator-pubkey':  OPERATOR_PUBKEY,
-    }
+      'x-payment':         encoded,
+      'x-facilitator-url': FACILITATOR_URL,
+      'x-operator-pubkey': OPERATOR_PUBKEY,
+    },
   })
 
+  console.log('status:', paid.status)
   const result = await paid.json()
   console.log('Result:', result)
 }

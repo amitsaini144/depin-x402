@@ -31,6 +31,12 @@ app.get('/api/data', async (req, res) => {
     }
 
     try {
+        const facilitatorBody = {
+            payment,
+            requiredAmount: Number(requirements.maxAmountRequired),
+            resource: requirements.resource,
+        }
+
         // Verify
         console.log('→ Calling verify...')
         const verifyRes = await fetch('http://localhost:4000/verify', {
@@ -39,15 +45,15 @@ app.get('/api/data', async (req, res) => {
                 'content-type': 'application/json',
                 'x-operator-pubkey': OPERATOR_PUBKEY,
             },
-            body: JSON.stringify({ paymentPayload: payment, paymentRequirements: requirements })
+            body: JSON.stringify(facilitatorBody)
         })
         console.log('Verify status:', verifyRes.status)
         const verifyBody = await verifyRes.json() as any
         console.log('Verify body:', JSON.stringify(verifyBody))
-        const { isValid, invalidReason } = verifyBody
+        const { valid, invalidReason } = verifyBody
 
-        if (!isValid) {
-            return res.status(402).json({ error: invalidReason })
+        if (!valid) {
+            return res.status(402).json({ error: invalidReason ?? 'Payment verification failed' })
         }
 
         // Settle
@@ -58,7 +64,7 @@ app.get('/api/data', async (req, res) => {
                 'content-type': 'application/json',
                 'x-operator-pubkey': OPERATOR_PUBKEY,
             },
-            body: JSON.stringify({ paymentPayload: payment, paymentRequirements: requirements })
+            body: JSON.stringify(facilitatorBody)
         })
         console.log('Settle status:', settleRes.status)
         const settlement = await settleRes.json() as any
@@ -71,9 +77,7 @@ app.get('/api/data', async (req, res) => {
         res.setHeader('x-payment-response', Buffer.from(JSON.stringify(settlement)).toString('base64'))
         res.json({
             data: 'protected content',
-            txSignature: settlement.txSignature,
-            receiptPda: settlement.receiptPda,
-            settledBy: settlement.settledBy,
+            txSignature: settlement.transaction,
         })
 
     } catch (e: any) {

@@ -61,13 +61,13 @@ app.get("/supported", (_req, res) => {
 
 app.post("/verify", async (req, res) => {
   try {
-    const { payment } = req.body;
+    const { payment, requiredAmount = 0, resource = "*" } = req.body;
     if (!payment) return res.status(400).json({ error: "payment required" });
 
     const { verifyPayment } = await import("./payment");
     const result = await verifyPayment(payment, {
-      requiredAmount: 0, // caller provides, just parse
-      resource: "*",
+      requiredAmount,
+      resource,
       facilitatorAddress: OPERATOR_ADDRESS,
     });
 

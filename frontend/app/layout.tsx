@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
-// @ts-expect-error — package ships CSS without TS declarations; Next.js bundles it fine
 import '@solana/wallet-adapter-react-ui/styles.css'
 import { SolanaProvider } from '@/components/wallet/solanaProvider'
 import { ThemeProvider } from '@/components/ui/themeProvider'

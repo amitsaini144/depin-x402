@@ -3,11 +3,11 @@
 import { useState } from 'react'
 import { useWallet, useConnection } from '@solana/wallet-adapter-react'
 import { PublicKey } from '@solana/web3.js'
-import { Program, AnchorProvider, BN } from '@coral-xyz/anchor'
+import { Program, AnchorProvider, BN, Idl } from '@coral-xyz/anchor'
 import { getAssociatedTokenAddress, TOKEN_PROGRAM_ID } from '@solana/spl-token'
 import {
   OperatorRecord, EpochStats,
-  SETTLEMENT_PROGRAM_ID, REGISTRY_PROGRAM_ID, REWARD_MINT,
+  SETTLEMENT_PROGRAM_ID, REWARD_MINT,
   currentEpoch, epochToBuffer, derivePDA,
 } from '@/hooks/useDepinData'
 import { Wallet, Trophy, AlertCircle, CheckCircle, Clock, Zap } from 'lucide-react'
@@ -73,8 +73,9 @@ export function MyOperatorPanel({ operator, myStats, onRefresh }: MyOperatorPane
       const operatorRewardAta = await getAssociatedTokenAddress(REWARD_MINT, publicKey)
 
       const wallet   = { publicKey, signTransaction, signAllTransactions }
-      const provider = new AnchorProvider(connection, wallet as any, { commitment: 'confirmed' })
-      const program  = new Program(CLAIM_IDL as any, SETTLEMENT_PROGRAM_ID, provider)
+      const provider = new AnchorProvider(connection, wallet, { commitment: 'confirmed' })
+      const idl: Idl = { ...CLAIM_IDL, address: SETTLEMENT_PROGRAM_ID.toBase58(), metadata: { name: CLAIM_IDL.name, version: CLAIM_IDL.version, spec: '0.1.0' } } as unknown as Idl
+      const program  = new Program(idl, provider)
 
       setClaimMsg('Awaiting wallet...')
       const tx = await program.methods
@@ -93,8 +94,8 @@ export function MyOperatorPanel({ operator, myStats, onRefresh }: MyOperatorPane
       setClaimMsg(`✅ Claimed! ${tx.slice(0, 8)}...`)
       await fetchRewardBal()
       onRefresh()
-    } catch (e: any) {
-      const msg = e?.message ?? String(e)
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Unknown error'
       setClaimMsg(
         msg.includes('AlreadyClaimed')    ? '⚠ Already claimed this epoch'   :
         msg.includes('EpochNotComplete')  ? '⚠ Epoch not complete yet'       :

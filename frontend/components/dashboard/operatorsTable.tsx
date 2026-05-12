@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useWallet, useConnection } from '@solana/wallet-adapter-react'
 import { PublicKey } from '@solana/web3.js'
-import { Program, AnchorProvider, BN } from '@coral-xyz/anchor'
+import { Program, AnchorProvider, BN, Idl } from '@coral-xyz/anchor'
 import { getAssociatedTokenAddress, TOKEN_PROGRAM_ID, createAssociatedTokenAccountInstruction } from '@solana/spl-token'
 import { OperatorRecord, REGISTRY_PROGRAM_ID, USDC_MINT, currentEpoch, epochToBuffer, derivePDA, SETTLEMENT_PROGRAM_ID } from '@/hooks/useDepinData'
 import { Shield, ShieldOff, ExternalLink, Sword, ChevronUp, ChevronDown } from 'lucide-react'
@@ -75,12 +75,18 @@ export function OperatorsTable({ operators, onRefresh }: OperatorsTableProps) {
         : [createAssociatedTokenAccountInstruction(publicKey, challengerAta, publicKey, USDC_MINT)]
 
       const wallet   = { publicKey, signTransaction, signAllTransactions }
-      const provider = new AnchorProvider(connection, wallet as any, { commitment: 'confirmed' })
-      const program  = new Program(REGISTRY_IDL as any, provider)
+      const provider = new AnchorProvider(connection, wallet, { commitment: 'confirmed' })
+      const program  = new Program(REGISTRY_IDL as Idl, provider)
 
       setSlashMsg(m => ({ ...m, [op.authority]: 'Sending tx...' }))
 
-      const tx = await (program.methods as any)
+      const tx = await (program.methods as unknown as {
+        slashOperator: (epoch: BN) => {
+          accounts: (a: Record<string, PublicKey>) => {
+            preInstructions: (ixs: unknown[]) => { rpc: () => Promise<string> }
+          }
+        }
+      })
         .slashOperator(new BN(target))
         .accounts({
           challenger:             publicKey,
@@ -98,9 +104,9 @@ export function OperatorsTable({ operators, onRefresh }: OperatorsTableProps) {
 
       setSlashMsg(m => ({ ...m, [op.authority]: `✅ Slashed! ${tx.slice(0, 8)}...` }))
       setTimeout(onRefresh, 2000)
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error('Slash error', e)
-      const msg = e?.message ?? String(e)
+      const msg = e instanceof Error ? e.message : 'Unknown error'
       const clean = msg.includes('HasPayments')       ? '⚠ Had payments this epoch'
                   : msg.includes('AlreadySlashed')    ? '⚠ Already slashed'
                   : msg.includes('EpochNotComplete')  ? '⚠ Epoch not done yet'

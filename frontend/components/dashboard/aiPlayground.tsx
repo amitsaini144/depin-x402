@@ -103,6 +103,7 @@ export default function AiPlayground() {
           { id: "gemini-2.5-pro-preview",   pricePerRequest: 3000, currency: "µUSDC", description: "3000 µUSDC per request" },
         ]);
       });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ── Auto-scroll ─────────────────────────────────────────────────────────
@@ -230,12 +231,13 @@ export default function AiPlayground() {
             : e
         )
       );
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("[AiPlayground]", err);
+      const message = err instanceof Error ? err.message : "Unknown error";
       setChat((c) =>
         c.map((e) =>
           e.id === pendingEntry.id
-            ? { ...e, pending: false, error: err.message, content: "" }
+            ? { ...e, pending: false, error: message, content: "" }
             : e
         )
       );
