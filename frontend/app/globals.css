@@ -1,0 +1,46 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root,
+.dark {
+  --bg-base:    8 11 16;     /* #080B10 */
+  --bg-surface: 13 17 23;    /* #0D1117 */
+  --bg-card:    22 27 34;    /* #161B22 */
+  --bg-subtle:  28 33 40;    /* #1C2128 */
+  --line:       33 38 45;    /* #21262D */
+  --fg:         230 237 243; /* #E6EDF3 */
+  --fg-muted:   139 148 158; /* #8B949E */
+  --fg-dim:     72 79 88;    /* #484F58 */
+}
+
+.light {
+  --bg-base:    232 236 240; /* #E8ECF0 — page (softer off-white) */
+  --bg-surface: 242 244 247; /* #F2F4F7 — nested panels / header */
+  --bg-card:    253 253 254; /* #FDFDFE — raised card (near-white) */
+  --bg-subtle:  225 230 235; /* #E1E6EB — hover state */
+  --line:       208 215 222; /* #D0D7DE */
+  --fg:         31 35 40;    /* #1F2328 */
+  --fg-muted:   87 96 106;   /* #57606A */
+  --fg-dim:     110 119 129; /* #6E7781 */
+}
+
+/* Raised cards get a subtle shadow in light mode so they read as
+   separated from the page. Dark mode uses border + bg contrast instead. */
+.light .bg-card {
+  box-shadow:
+    0 1px 2px 0 rgb(15 20 30 / 0.04),
+    0 4px 12px -2px rgb(15 20 30 / 0.06);
+}
+
+body {
+  color: rgb(var(--fg));
+  background: rgb(var(--bg-base));
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
