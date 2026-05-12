@@ -65,9 +65,6 @@ function loadWallet(): Keypair {
   }
 
   const secretKey = Uint8Array.from(JSON.parse(key));
-
-  console.log("secretKey", secretKey);
-
   return Keypair.fromSecretKey(secretKey);
 }
 

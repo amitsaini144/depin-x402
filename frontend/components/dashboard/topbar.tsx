@@ -44,8 +44,9 @@ export function Topbar({ onRefresh, loading, lastRefresh }: TopbarProps) {
           <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-cyan-DEFAULT to-green-DEFAULT flex items-center justify-center">
             <Zap size={14} className="text-[#080B10]" />
           </div>
-          <span className="font-mono text-sm font-semibold text-gradient-cyan hidden sm:block">
-            DePIN x402
+          <span className="font-mono text-sm font-semibold text-gradient-cyan hidden sm:flex items-baseline gap-1.5">
+            <span>SettLd</span>
+            <span className="text-[10px] font-normal text-dim tracking-wider">DePIN x402</span>
           </span>
         </div>
 
@@ -80,10 +81,10 @@ export function Topbar({ onRefresh, loading, lastRefresh }: TopbarProps) {
               'p-2 rounded-lg border border-line text-muted',
               'hover:border-[#00E5FF] hover:text-[#00E5FF] hover:bg-[#00E5FF10]',
               'transition-all duration-150',
-              loading && 'animate-spin'
+              loading && 'opacity-60 cursor-not-allowed'
             )}
           >
-            <RefreshCw size={14} />
+            <RefreshCw size={14} className={clsx(loading && 'animate-spin')} />
           </button>
           <button
             onClick={toggle}
