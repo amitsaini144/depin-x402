@@ -215,7 +215,116 @@ export type SettlementProgram = {
       "args": []
     },
     {
+      "name": "recordPayment",
+      "docs": [
+        "record_payment — trustless settlement instruction",
+        "",
+        "Called by the operator AFTER the client has independently sent a USDC",
+        "SPL transfer to the operator's ATA. The operator provides proof of that",
+        "transfer via `usdc_tx_sig` (the confirmed Solana tx signature).",
+        "",
+        "Only the operator signs this transaction. The client is referenced by",
+        "pubkey only — they already signed their own SPL transfer separately."
+      ],
+      "discriminator": [
+        226,
+        154,
+        10,
+        27,
+        9,
+        14,
+        148,
+        137
+      ],
+      "accounts": [
+        {
+          "name": "operator",
+          "docs": [
+            "Operator signs and pays rent"
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "payer"
+        },
+        {
+          "name": "paymentReceipt",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  99,
+                  101,
+                  105,
+                  112,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "payer"
+              },
+              {
+                "kind": "arg",
+                "path": "nonce"
+              }
+            ]
+          }
+        },
+        {
+          "name": "operatorStats",
+          "writable": true
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        },
+        {
+          "name": "resourceHash",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "nonce",
+          "type": {
+            "array": [
+              "u8",
+              8
+            ]
+          }
+        },
+        {
+          "name": "usdcTxSig",
+          "type": {
+            "array": [
+              "u8",
+              64
+            ]
+          }
+        }
+      ]
+    },
+    {
       "name": "settlePayment",
+      "docs": [
+        "settle_payment — legacy instruction kept for backwards compatibility",
+        "Requires payer to sign. Use record_payment for the trustless flow."
+      ],
       "discriminator": [
         129,
         7,
@@ -348,6 +457,11 @@ export type SettlementProgram = {
       "code": 6001,
       "name": "epochNotComplete",
       "msg": "Epoch is not yet complete"
+    },
+    {
+      "code": 6002,
+      "name": "invalidAmount",
+      "msg": "Invalid amount — must be greater than zero"
     }
   ],
   "types": [
@@ -389,7 +503,7 @@ export type SettlementProgram = {
             "type": "pubkey"
           },
           {
-            "name": "merchant",
+            "name": "operator",
             "type": "pubkey"
           },
           {
@@ -411,6 +525,15 @@ export type SettlementProgram = {
               "array": [
                 "u8",
                 8
+              ]
+            }
+          },
+          {
+            "name": "usdcTxSig",
+            "type": {
+              "array": [
+                "u8",
+                64
               ]
             }
           },

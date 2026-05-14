@@ -58,22 +58,30 @@ app.get("/supported", (_req, res) => {
 });
 
 // ── Verify ─────────────────────────────────────────────────────────────────
-
 app.post("/verify", async (req, res) => {
   try {
     const { payment, requiredAmount = 0, resource = "*" } = req.body;
-    if (!payment) return res.status(400).json({ error: "payment required" });
+
+    if (!payment) {
+      return res.status(400).json({ error: "payment header is required" });
+    }
 
     const { verifyPayment } = await import("./payment");
+
     const result = await verifyPayment(payment, {
-      requiredAmount,
+      requiredAmount: Number(requiredAmount),
       resource,
       facilitatorAddress: OPERATOR_ADDRESS,
     });
 
     res.json(result);
   } catch (err: any) {
-    res.status(400).json({ error: err.message });
+    console.error("[VERIFY] ERROR:", err.message);
+    console.error(err.stack);           // ← This will show us the real error
+    res.status(400).json({ 
+      error: err.message,
+      details: "Check facilitator logs for full stack trace"
+    });
   }
 });
 

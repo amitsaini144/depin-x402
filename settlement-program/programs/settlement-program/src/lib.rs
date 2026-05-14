@@ -14,6 +14,8 @@ pub enum SettlementError {
     AlreadyClaimed,
     #[msg("Epoch is not yet complete")]
     EpochNotComplete,
+    #[msg("Invalid amount — must be greater than zero")]
+    InvalidAmount,
 }
 
 // ─── Program ─────────────────────────────────────────────────────────────────
@@ -27,13 +29,77 @@ pub mod settlement_program {
         Ok(())
     }
 
+    /// record_payment — trustless settlement instruction
+    ///
+    /// Called by the operator AFTER the client has independently sent a USDC
+    /// SPL transfer to the operator's ATA. The operator provides proof of that
+    /// transfer via `usdc_tx_sig` (the confirmed Solana tx signature).
+    ///
+    /// Only the operator signs this transaction. The client is referenced by
+    /// pubkey only — they already signed their own SPL transfer separately.
+    pub fn record_payment(
+        ctx: Context<RecordPayment>,
+        amount: u64,
+        resource_hash: [u8; 32],
+        nonce: [u8; 8],
+        usdc_tx_sig: [u8; 64],
+    ) -> Result<()> {
+        require!(amount > 0, SettlementError::InvalidAmount);
+
+        let now           = Clock::get()?.unix_timestamp;
+        let current_epoch = now / EPOCH_DURATION;
+
+        // ── Write payment receipt ─────────────────────────────────────────
+        let receipt           = &mut ctx.accounts.payment_receipt;
+        receipt.payer         = ctx.accounts.payer.key();
+        receipt.operator      = ctx.accounts.operator.key();
+        receipt.amount        = amount;
+        receipt.resource_hash = resource_hash;
+        receipt.nonce         = nonce;
+        receipt.usdc_tx_sig   = usdc_tx_sig;
+        receipt.timestamp     = now;
+        receipt.settled       = true;
+
+        msg!(
+            "Payment recorded: payer={} operator={} amount={} epoch={}",
+            ctx.accounts.payer.key(),
+            ctx.accounts.operator.key(),
+            amount,
+            current_epoch,
+        );
+
+        // ── Update epoch-keyed OperatorStats ──────────────────────────────
+        let stats = &mut ctx.accounts.operator_stats;
+
+        if stats.epoch == 0 && stats.payment_count == 0 {
+            stats.operator        = ctx.accounts.operator.key();
+            stats.epoch           = current_epoch;
+            stats.payment_count   = 0;
+            stats.volume          = 0;
+            stats.rewards_claimed = false;
+        }
+
+        stats.payment_count += 1;
+        stats.volume        += amount;
+
+        msg!(
+            "OperatorStats updated: epoch={} payment_count={} volume={}",
+            current_epoch,
+            stats.payment_count,
+            stats.volume,
+        );
+
+        Ok(())
+    }
+
+    /// settle_payment — legacy instruction kept for backwards compatibility
+    /// Requires payer to sign. Use record_payment for the trustless flow.
     pub fn settle_payment(
         ctx: Context<SettlePayment>,
         amount: u64,
         resource_hash: [u8; 32],
         nonce: [u8; 8],
     ) -> Result<()> {
-        // Transfer USDC from payer to merchant
         let cpi_accounts = Transfer {
             from:      ctx.accounts.payer_ata.to_account_info(),
             to:        ctx.accounts.merchant_ata.to_account_info(),
@@ -44,26 +110,20 @@ pub mod settlement_program {
             amount,
         )?;
 
-        // Write payment receipt
-        let receipt = &mut ctx.accounts.payment_receipt;
+        let receipt           = &mut ctx.accounts.payment_receipt;
         receipt.payer         = ctx.accounts.payer.key();
-        receipt.merchant      = ctx.accounts.merchant_ata.key();
+        receipt.operator      = ctx.accounts.operator.key();
         receipt.amount        = amount;
         receipt.resource_hash = resource_hash;
         receipt.nonce         = nonce;
+        receipt.usdc_tx_sig   = [0u8; 64];
         receipt.timestamp     = Clock::get()?.unix_timestamp;
         receipt.settled       = true;
 
-        // Update epoch-keyed OperatorStats.
-        //
-        // IMPORTANT: OperatorStats is now keyed by [b"stats", operator, epoch_bytes].
-        // Each epoch gets its own PDA — historical data is never overwritten.
-        // This allows the slasher to read any past epoch's stats without a race condition.
         let now           = Clock::get()?.unix_timestamp;
         let current_epoch = now / EPOCH_DURATION;
         let stats         = &mut ctx.accounts.operator_stats;
 
-        // On first write to this epoch PDA, initialize it
         if stats.epoch == 0 && stats.payment_count == 0 {
             stats.operator        = ctx.accounts.operator.key();
             stats.epoch           = current_epoch;
@@ -83,11 +143,10 @@ pub mod settlement_program {
         let current_epoch = now / EPOCH_DURATION;
         let stats         = &mut ctx.accounts.operator_stats;
 
-        require!(epoch < current_epoch,   SettlementError::EpochNotComplete);
-        require!(!stats.rewards_claimed,  SettlementError::AlreadyClaimed);
+        require!(epoch < current_epoch,  SettlementError::EpochNotComplete);
+        require!(!stats.rewards_claimed, SettlementError::AlreadyClaimed);
 
         let reward_amount = stats.payment_count.saturating_mul(REWARD_TOKENS_PER_TX);
-
         stats.rewards_claimed = true;
 
         let seeds        = &[b"reward-authority".as_ref(), &[ctx.bumps.reward_authority]];
@@ -129,10 +188,7 @@ pub struct InitializeProtocol<'info> {
     pub reward_mint: Account<'info, Mint>,
 
     /// CHECK: PDA used only as mint authority
-    #[account(
-        seeds = [b"reward-authority"],
-        bump,
-    )]
+    #[account(seeds = [b"reward-authority"], bump)]
     pub reward_authority: UncheckedAccount<'info>,
 
     pub token_program:  Program<'info, Token>,
@@ -140,6 +196,43 @@ pub struct InitializeProtocol<'info> {
     pub rent:           Sysvar<'info, Rent>,
 }
 
+/// RecordPayment — trustless, operator-only signer
+#[derive(Accounts)]
+#[instruction(amount: u64, resource_hash: [u8; 32], nonce: [u8; 8], usdc_tx_sig: [u8; 64])]
+pub struct RecordPayment<'info> {
+    /// Operator signs and pays rent
+    #[account(mut)]
+    pub operator: Signer<'info>,
+
+    /// CHECK: client pubkey — not a signer, verified off-chain via usdc_tx_sig
+    pub payer: UncheckedAccount<'info>,
+
+    #[account(
+        init,
+        payer = operator,
+        space = 8 + PaymentReceipt::SPACE,
+        seeds = [b"receipt", payer.key().as_ref(), &nonce],
+        bump,
+    )]
+    pub payment_receipt: Account<'info, PaymentReceipt>,
+
+    #[account(
+        init_if_needed,
+        payer = operator,
+        space = 8 + OperatorStats::SPACE,
+        seeds = [
+            b"stats",
+            operator.key().as_ref(),
+            &(Clock::get().unwrap().unix_timestamp / EPOCH_DURATION).to_le_bytes(),
+        ],
+        bump,
+    )]
+    pub operator_stats: Account<'info, OperatorStats>,
+
+    pub system_program: Program<'info, System>,
+}
+
+/// SettlePayment — legacy, payer must sign
 #[derive(Accounts)]
 #[instruction(amount: u64, resource_hash: [u8; 32], nonce: [u8; 8])]
 pub struct SettlePayment<'info> {
@@ -168,8 +261,6 @@ pub struct SettlePayment<'info> {
         init_if_needed,
         payer = payer,
         space = 8 + OperatorStats::SPACE,
-        // KEY CHANGE: epoch is now part of the PDA seed.
-        // Each epoch gets its own account — history is preserved.
         seeds = [
             b"stats",
             operator.key().as_ref(),
@@ -201,18 +292,11 @@ pub struct ClaimRewards<'info> {
     )]
     pub operator_stats: Account<'info, OperatorStats>,
 
-    #[account(
-        mut,
-        seeds = [b"reward-mint"],
-        bump,
-    )]
+    #[account(mut, seeds = [b"reward-mint"], bump)]
     pub reward_mint: Account<'info, Mint>,
 
     /// CHECK: PDA used only as signer for mint_to
-    #[account(
-        seeds = [b"reward-authority"],
-        bump,
-    )]
+    #[account(seeds = [b"reward-authority"], bump)]
     pub reward_authority: UncheckedAccount<'info>,
 
     #[account(
@@ -230,17 +314,19 @@ pub struct ClaimRewards<'info> {
 
 #[account]
 pub struct PaymentReceipt {
-    pub payer:         Pubkey,
-    pub merchant:      Pubkey,
-    pub amount:        u64,
-    pub resource_hash: [u8; 32],
-    pub nonce:         [u8; 8],
+    pub payer:         Pubkey,   // client who paid
+    pub operator:      Pubkey,   // operator who recorded
+    pub amount:        u64,      // µUSDC paid
+    pub resource_hash: [u8; 32], // sha256 of resource URL
+    pub nonce:         [u8; 8],  // unique per payment
+    pub usdc_tx_sig:   [u8; 64], // proof: client's SPL transfer tx signature
     pub timestamp:     i64,
     pub settled:       bool,
 }
 
 impl PaymentReceipt {
-    pub const SPACE: usize = 32 + 32 + 8 + 32 + 8 + 8 + 1;
+    // 32 + 32 + 8 + 32 + 8 + 64 + 8 + 1 = 185
+    pub const SPACE: usize = 32 + 32 + 8 + 32 + 8 + 64 + 8 + 1;
 }
 
 #[account]
@@ -253,5 +339,5 @@ pub struct OperatorStats {
 }
 
 impl OperatorStats {
-    pub const SPACE: usize = 32 + 8 + 8 + 8 + 1; // 57 bytes
+    pub const SPACE: usize = 32 + 8 + 8 + 8 + 1;
 }
