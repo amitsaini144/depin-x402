@@ -29,6 +29,8 @@ pub enum RegistryError {
     RewardsClaimed,
     #[msg("This epoch has already been slashed for this operator")]
     AlreadySlashed,
+    #[msg("Operator is already registered and active — deregister first")]
+    AlreadyRegistered,
     #[msg("OperatorStats account does not belong to settlement program")]
     InvalidStatsOwner,
     #[msg("OperatorStats PDA seeds do not match operator")]
@@ -53,6 +55,12 @@ pub mod operator_registry {
     ) -> Result<()> {
         require!(endpoint_url.len() <= 128, RegistryError::UrlTooLong);
         require!(stake_amount >= MIN_STAKE, RegistryError::InsufficientStake);
+
+        // Prevent overwriting an active registration
+        let op = &ctx.accounts.operator_record;
+        if op.registered_at != 0 {
+            require!(!op.active, RegistryError::AlreadyRegistered);
+        }
 
         let cpi_accounts = Transfer {
             from:      ctx.accounts.operator_token_account.to_account_info(),
@@ -280,7 +288,7 @@ pub struct RegisterOperator<'info> {
     pub authority: Signer<'info>,
 
     #[account(mut)]
-    pub operator_token_account: Account<'info, TokenAccount>,
+    pub operator_token_account: Box<Account<'info, TokenAccount>>,
 
     #[account(
         init_if_needed,
@@ -290,18 +298,18 @@ pub struct RegisterOperator<'info> {
         seeds = [b"vault", authority.key().as_ref()],
         bump,
     )]
-    pub vault: Account<'info, TokenAccount>,
+    pub vault: Box<Account<'info, TokenAccount>>,
 
-    pub mint: Account<'info, Mint>,
+    pub mint: Box<Account<'info, Mint>>,
 
     #[account(
-        init,
+        init_if_needed,
         payer = authority,
         space = 8 + OperatorRecord::SPACE,
         seeds = [b"operator", authority.key().as_ref()],
         bump,
     )]
-    pub operator_record: Account<'info, OperatorRecord>,
+    pub operator_record: Box<Account<'info, OperatorRecord>>,
 
     pub token_program:  Program<'info, Token>,
     pub system_program: Program<'info, System>,
@@ -319,17 +327,17 @@ pub struct DeregisterOperator<'info> {
         bump,
         has_one = authority,
     )]
-    pub operator_record: Account<'info, OperatorRecord>,
+    pub operator_record: Box<Account<'info, OperatorRecord>>,
 
     #[account(
         mut,
         seeds = [b"vault", authority.key().as_ref()],
         bump,
     )]
-    pub vault: Account<'info, TokenAccount>,
+    pub vault: Box<Account<'info, TokenAccount>>,
 
     #[account(mut)]
-    pub operator_token_account: Account<'info, TokenAccount>,
+    pub operator_token_account: Box<Account<'info, TokenAccount>>,
 
     pub token_program: Program<'info, Token>,
 }
@@ -347,7 +355,7 @@ pub struct SlashOperator<'info> {
         token::mint      = mint,
         token::authority = challenger,
     )]
-    pub challenger_token_account: Account<'info, TokenAccount>,
+    pub challenger_token_account: Box<Account<'info, TokenAccount>>,
 
     /// The operator being slashed
     #[account(
@@ -355,7 +363,7 @@ pub struct SlashOperator<'info> {
         seeds = [b"operator", operator_record.authority.as_ref()],
         bump,
     )]
-    pub operator_record: Account<'info, OperatorRecord>,
+    pub operator_record: Box<Account<'info, OperatorRecord>>,
 
     /// Operator's stake vault — funds are transferred from here
     #[account(
@@ -363,9 +371,9 @@ pub struct SlashOperator<'info> {
         seeds = [b"vault", operator_record.authority.as_ref()],
         bump,
     )]
-    pub vault: Account<'info, TokenAccount>,
+    pub vault: Box<Account<'info, TokenAccount>>,
 
-    pub mint: Account<'info, Mint>,
+    pub mint: Box<Account<'info, Mint>>,
 
     /// CHECK: Either settlement program OperatorStats PDA (Path B), or SystemProgram ID as sentinel (Path A)
     pub operator_stats: UncheckedAccount<'info>,
