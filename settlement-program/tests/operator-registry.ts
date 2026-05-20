@@ -12,6 +12,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
+import { OperatorRegistry } from "../target/types/operator_registry";
+
 async function rpc(fn: () => Promise<string>, label: string): Promise<string> {
   try {
     const sig = await fn();
@@ -46,7 +48,7 @@ function loadKeypair(filename: string): Keypair {
 const provider = anchor.AnchorProvider.env();
 anchor.setProvider(provider);
 
-const program  = anchor.workspace.OperatorRegistry as Program;
+const program  = anchor.workspace.OperatorRegistry as Program<OperatorRegistry>;
 const operator = loadKeypair("id.json");
 const client   = loadKeypair("devnet.json"); // used as challenger in slash tests
 
@@ -130,7 +132,7 @@ describe("register_operator", () => {
         await rpc(
           () => program.methods
             .deregisterOperator()
-            .accounts({
+            .accountsPartial({
               authority:             operator.publicKey,
               operatorRecord,
               vault,
@@ -158,7 +160,7 @@ describe("register_operator", () => {
     await rpc(
       () => program.methods
         .registerOperator("https://facilitator.example.com", "us-east-1", new BN(MIN_STAKE))
-        .accounts({
+        .accountsPartial({
           authority:            operator.publicKey,
           operatorTokenAccount: operatorAta,
           vault,
@@ -282,7 +284,7 @@ describe("slash_operator – Path A (operator fully inactive)", () => {
     await rpc(
       () => program.methods
         .slashOperator(new BN(targetEpoch.toString()))
-        .accounts({
+        .accountsPartial({
           challenger:             client.publicKey,
           challengerTokenAccount: clientAta,
           operatorRecord:         operatorRecordPda(operator.publicKey),
@@ -363,7 +365,7 @@ describe("deregister_operator", () => {
     await rpc(
       () => program.methods
         .deregisterOperator()
-        .accounts({
+        .accountsPartial({
           authority:            operator.publicKey,
           operatorRecord,
           vault,

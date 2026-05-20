@@ -11,6 +11,7 @@ import { expect } from "chai";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { SettlementProgram } from "../target/types/settlement_program";
 
 import { BN } from "bn.js";
 
@@ -34,7 +35,7 @@ const connection = new anchor.web3.Connection(
   "confirmed"
 );
 
-const program = anchor.workspace.SettlementProgram as Program;
+const program = anchor.workspace.SettlementProgram as Program<SettlementProgram>;
 const operator = loadKeypair("id.json");
 const client = loadKeypair("devnet.json");
 
@@ -87,7 +88,7 @@ describe("initialize_protocol", () => {
     try {
       await program.methods
         .initializeProtocol()
-        .accounts({
+        .accountsPartial({
           payer: operator.publicKey,
           rewardMint: rewardMintPda(),
           rewardAuthority: rewardAuthorityPda(),
@@ -142,7 +143,7 @@ describe("record_payment", () => {
   it("creates payment receipt PDA", async () => {
     await program.methods
       .recordPayment(amount, resourceHash, Array.from(nonce), usdcTxSig)
-      .accounts({
+      .accountsPartial({
         operator: operator.publicKey,
         payer: client.publicKey,
         paymentReceipt: receipt,
@@ -212,7 +213,7 @@ describe("settle_payment (legacy)", () => {
     try {
       await clientProgram.methods
         .settlePayment(amount, resourceHash, Array.from(nonce))
-        .accounts({
+        .accountsPartial({
           payer: client.publicKey,
           payerAta: clientAta,
           merchantAta: operatorAta,
@@ -271,7 +272,7 @@ describe("claim_rewards", () => {
 
     await program.methods
       .claimRewards(new BN(currentEpoch.toString()))
-      .accounts({
+      .accountsPartial({
         authority: operator.publicKey,
         operatorStats: stats,
         rewardMint: rewardMintPda(),
@@ -302,7 +303,7 @@ describe("unhappy paths – initialize_protocol", () => {
     try {
       await program.methods
         .initializeProtocol()
-        .accounts({
+        .accountsPartial({
           payer: operator.publicKey,
           rewardMint: rewardMintPda(),
           rewardAuthority: rewardAuthorityPda(),
@@ -326,7 +327,7 @@ describe("unhappy paths – initialize_protocol", () => {
     try {
       await program.methods
         .initializeProtocol()
-        .accounts({
+        .accountsPartial({
           payer: client.publicKey,      // client is funded, no airdrop needed
           rewardMint: rewardMintPda(),
           rewardAuthority: rewardAuthorityPda(),
@@ -363,7 +364,7 @@ describe("unhappy paths – record_payment", () => {
     // First call — must succeed
     await program.methods
       .recordPayment(amount, resourceHash, Array.from(duplicateNonce), usdcTxSig)
-      .accounts({
+      .accountsPartial({
         operator: operator.publicKey,
         payer: client.publicKey,
         paymentReceipt: receipt,
@@ -376,7 +377,7 @@ describe("unhappy paths – record_payment", () => {
     try {
       await program.methods
         .recordPayment(amount, resourceHash, Array.from(duplicateNonce), usdcTxSig)
-        .accounts({
+        .accountsPartial({
           operator: operator.publicKey,
           payer: client.publicKey,
           paymentReceipt: receipt,
@@ -411,7 +412,7 @@ describe("unhappy paths – record_payment", () => {
           Array.from(nonce),
           Array.from(Buffer.alloc(64, 0x02))
         )
-        .accounts({
+        .accountsPartial({
           operator: client.publicKey,   // client impersonating operator
           payer: client.publicKey,
           paymentReceipt: receipt,
@@ -440,7 +441,7 @@ describe("unhappy paths – record_payment", () => {
           Array.from(nonce),
           Array.from(Buffer.alloc(64, 0x06))
         )
-        .accounts({
+        .accountsPartial({
           operator: operator.publicKey,
           payer: client.publicKey,
           paymentReceipt: receipt,
@@ -488,7 +489,7 @@ describe("unhappy paths – settle_payment", () => {
 
     await clientProgram.methods
       .settlePayment(new BN(500_000), Array.from(Buffer.alloc(32, 0x07)), Array.from(settledNonce))
-      .accounts({
+      .accountsPartial({
         payer: client.publicKey,
         payerAta: clientAta,
         merchantAta: operatorAta,
@@ -512,7 +513,7 @@ describe("unhappy paths – settle_payment", () => {
     try {
       await clientProgram.methods
         .settlePayment(new BN(500_000), Array.from(Buffer.alloc(32, 0x07)), Array.from(settledNonce))
-        .accounts({
+        .accountsPartial({
           payer: client.publicKey,
           payerAta: clientAta,
           merchantAta: operatorAta,
@@ -546,7 +547,7 @@ describe("unhappy paths – settle_payment", () => {
     try {
       await operatorProgram.methods
         .settlePayment(new BN(500_000), Array.from(Buffer.alloc(32, 0x08)), Array.from(nonce))
-        .accounts({
+        .accountsPartial({
           payer: operator.publicKey,    // operator pretending to be a payer
           payerAta: operatorAta,
           merchantAta: operatorAta,     // paying themselves
@@ -572,7 +573,7 @@ describe("unhappy paths – claim_rewards", () => {
     try {
       await program.methods
         .claimRewards(new BN(futureEpoch.toString()))
-        .accounts({
+        .accountsPartial({
           authority: operator.publicKey,
           operatorStats: futureStats,
           rewardMint: rewardMintPda(),
@@ -600,7 +601,7 @@ describe("unhappy paths – claim_rewards", () => {
     try {
       await program.methods
         .claimRewards(new BN(currentEpoch.toString()))
-        .accounts({
+        .accountsPartial({
           authority: operator.publicKey,
           operatorStats: stats,
           rewardMint: rewardMintPda(),
@@ -630,7 +631,7 @@ describe("unhappy paths – claim_rewards", () => {
     try {
       await clientProgram.methods
         .claimRewards(new BN(currentEpoch.toString()))
-        .accounts({
+        .accountsPartial({
           authority: client.publicKey,  // wrong authority
           operatorStats: stats,         // belongs to operator
           rewardMint: rewardMintPda(),
