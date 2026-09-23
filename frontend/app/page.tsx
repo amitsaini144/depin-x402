@@ -7,15 +7,16 @@ import { StatsCards } from '@/components/dashboard/statsCards'
 import { OperatorsTable } from '@/components/dashboard/operatorsTable'
 import { MyOperatorPanel } from '@/components/dashboard/myOperatorPanel'
 import { SlashFeed } from '@/components/dashboard/slashFeed'
-import { Globe, User, Sword } from 'lucide-react'
+import { Panel, PanelHeader } from '@/components/ui/panel'
+import { AlertTriangle } from 'lucide-react'
 import clsx from 'clsx'
 
 type Tab = 'network' | 'mine' | 'slashes'
 
-const TABS = [
-  { key: 'network' as Tab, label: 'Network',       icon: <Globe size={13} /> },
-  { key: 'mine'    as Tab, label: 'My Operator',   icon: <User  size={13} /> },
-  { key: 'slashes' as Tab, label: 'Slashes',       icon: <Sword size={13} /> },
+const TABS: { key: Tab; label: string }[] = [
+  { key: 'network', label: 'Network' },
+  { key: 'mine',    label: 'My operator' },
+  { key: 'slashes', label: 'Slashes' },
 ]
 
 export default function DashboardPage() {
@@ -26,68 +27,55 @@ export default function DashboardPage() {
   } = useDepinData()
 
   return (
-    <div className="min-h-screen bg-base scanline">
+    <div className="min-h-screen bg-base">
       <Topbar onRefresh={refresh} loading={loading} lastRefresh={lastRefresh} />
+      <StatsCards operators={operators} slashRecords={slashRecords} />
 
-      <main className="mx-auto max-w-7xl px-4 py-6 space-y-5">
-
-        {/* Error banner */}
-        {error && (
-          <div className="rounded-lg border border-[#FF3B5C40] bg-[#FF3B5C10] px-4 py-2.5 font-mono text-xs text-[#FF3B5C]">
-            ⚠ {error}
-          </div>
-        )}
-
-        {/* Stats row */}
-        <StatsCards operators={operators} slashRecords={slashRecords} />
+      <main className="mx-auto max-w-6xl px-4 sm:px-6 pt-4 pb-12">
 
         {/* Tab nav */}
-        <div className="flex items-center gap-1 border-b border-line pb-0">
+        <nav className="flex items-center gap-6 border-b border-line" role="tablist">
           {TABS.map(t => (
             <button
               key={t.key}
+              role="tab"
+              aria-selected={tab === t.key}
               onClick={() => setTab(t.key)}
               className={clsx(
-                'flex items-center gap-1.5 px-4 py-2.5 font-mono text-xs font-medium transition-all duration-150',
-                'border-b-2 -mb-px',
+                'relative -mb-px py-4 text-sm font-medium transition-colors border-b-2',
                 tab === t.key
-                  ? 'border-[#00E5FF] text-[#00E5FF]'
-                  : 'border-transparent text-dim hover:text-muted'
+                  ? 'border-accent-strong text-fg'
+                  : 'border-transparent text-muted hover:text-fg'
               )}
             >
-              {t.icon}
               {t.label}
               {t.key === 'slashes' && slashRecords.length > 0 && (
-                <span className="ml-1 px-1.5 py-0.5 rounded-full bg-[#FF3B5C20] text-[#FF3B5C] text-[9px]">
-                  {slashRecords.length}
-                </span>
+                <span className="num ml-2 text-xs text-dim">{slashRecords.length}</span>
               )}
             </button>
           ))}
-        </div>
+        </nav>
 
-        {/* Tab content */}
-        <div className="animate-fade-in">
+        {error && (
+          <div className="mt-6 flex items-start gap-3 rounded-lg border border-line border-l-[3px] border-l-accent-strong bg-card px-4 py-3 text-sm text-fg">
+            <AlertTriangle size={16} className="text-accent-strong mt-0.5 shrink-0" />
+            <span>{error}</span>
+          </div>
+        )}
 
-          {/* ── Network tab ──────────────────────────────────────────── */}
+        <div className="mt-6">
           {tab === 'network' && (
             <OperatorsTable operators={operators} onRefresh={refresh} />
           )}
 
-          {/* ── My Operator tab ──────────────────────────────────────── */}
           {tab === 'mine' && (
-            <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-              {/* Main panel — wider */}
+            <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
               <div className="lg:col-span-3">
-                <MyOperatorPanel
-                  operator={myOperator}
-                  myStats={myStats}
-                  onRefresh={refresh}
-                />
+                <MyOperatorPanel operator={myOperator} myStats={myStats} onRefresh={refresh} />
               </div>
-              {/* Recent slashes against my operator */}
               <div className="lg:col-span-2">
                 <SlashFeed
+                  title="Slashes against you"
                   records={myOperator
                     ? slashRecords.filter(r => r.operator === myOperator.authority)
                     : []
@@ -97,72 +85,50 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {/* ── Slashes tab ──────────────────────────────────────────── */}
           {tab === 'slashes' && (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <div className="lg:col-span-2">
                 <SlashFeed records={slashRecords} />
               </div>
-              {/* Summary card */}
-              <div className="rounded-xl border border-line bg-card p-4">
-                <h3 className="font-mono text-xs font-semibold text-fg mb-4 uppercase tracking-widest">
-                  Slash Summary
-                </h3>
-                <div className="space-y-3">
-                  <SummaryRow
-                    label="Total events"
-                    value={slashRecords.length.toString()}
-                    accent="red"
-                  />
+              <Panel className="self-start">
+                <PanelHeader title="Summary" />
+                <dl className="px-5 py-2 divide-y divide-line">
+                  <SummaryRow label="Total events" value={slashRecords.length.toString()} />
                   <SummaryRow
                     label="Total slashed"
-                    value={`${(slashRecords.reduce((s, r) => s + r.slashAmount, 0) / 1_000_000).toFixed(4)} USDC`}
-                    accent="red"
+                    value={(slashRecords.reduce((s, r) => s + r.slashAmount, 0) / 1_000_000).toFixed(4)}
+                    unit="USDC"
                   />
-                  <SummaryRow
-                    label="Unique operators"
-                    value={new Set(slashRecords.map(r => r.operator)).size.toString()}
-                    accent="amber"
-                  />
-                  <SummaryRow
-                    label="Unique challengers"
-                    value={new Set(slashRecords.map(r => r.challenger)).size.toString()}
-                    accent="cyan"
-                  />
-                </div>
-
-                <div className="mt-5 pt-4 border-t border-line">
-                  <p className="font-mono text-[10px] text-dim leading-relaxed">
-                    Operators are slashable when they are registered and active but process zero payments in a completed epoch.
-                    Challengers earn 10% of the operator&apos;s vault balance.
-                  </p>
-                </div>
-              </div>
+                  <SummaryRow label="Unique operators"   value={new Set(slashRecords.map(r => r.operator)).size.toString()} />
+                  <SummaryRow label="Unique challengers" value={new Set(slashRecords.map(r => r.challenger)).size.toString()} />
+                </dl>
+                <p className="px-5 py-4 border-t border-line text-xs leading-relaxed text-muted">
+                  An operator is slashable when it is registered and active but processes zero payments in a
+                  completed epoch. The challenger receives 10% of the operator&apos;s vault.
+                </p>
+              </Panel>
             </div>
           )}
         </div>
 
-        {/* Footer */}
-        <footer className="pt-4 border-t border-line flex items-center justify-between">
-          <span className="font-mono text-[10px] text-dim">
-            Settld · DePIN x402 · Solana Devnet
-          </span>
-          <div className="flex items-center gap-3">
+        <footer className="mt-16 pt-6 border-t border-line flex flex-col sm:flex-row gap-3 sm:items-center justify-between text-xs text-muted">
+          <span>Settld · DePIN x402 on Solana Devnet</span>
+          <div className="flex items-center gap-5">
             <a
-              href={`https://explorer.solana.com/address/Hzg2MGHMMoVDgA5X5v5r4XwMKyZAwUyZuYfMAtUg6whV?cluster=devnet`}
+              href="https://explorer.solana.com/address/Hzg2MGHMMoVDgA5X5v5r4XwMKyZAwUyZuYfMAtUg6whV?cluster=devnet"
               target="_blank"
               rel="noopener noreferrer"
-              className="font-mono text-[10px] text-dim hover:text-[#00E5FF] transition-colors"
+              className="hover:text-accent-strong transition-colors"
             >
-              Settlement Program ↗
+              Settlement program ↗
             </a>
             <a
-              href={`https://explorer.solana.com/address/38X2K9cy8m4LnvtRmhFWs6TRuxCZV24znbBqCDJaAPXT?cluster=devnet`}
+              href="https://explorer.solana.com/address/38X2K9cy8m4LnvtRmhFWs6TRuxCZV24znbBqCDJaAPXT?cluster=devnet"
               target="_blank"
               rel="noopener noreferrer"
-              className="font-mono text-[10px] text-dim hover:text-[#00E5FF] transition-colors"
+              className="hover:text-accent-strong transition-colors"
             >
-              Registry Program ↗
+              Registry program ↗
             </a>
           </div>
         </footer>
@@ -171,16 +137,14 @@ export default function DashboardPage() {
   )
 }
 
-function SummaryRow({ label, value, accent }: { label: string; value: string; accent: 'red' | 'cyan' | 'amber' }) {
-  const colors = {
-    red:   'text-[#FF3B5C]',
-    cyan:  'text-[#00E5FF]',
-    amber: 'text-[#FFB800]',
-  }
+function SummaryRow({ label, value, unit }: { label: string; value: string; unit?: string }) {
   return (
-    <div className="flex items-center justify-between">
-      <span className="font-mono text-[11px] text-dim">{label}</span>
-      <span className={clsx('font-mono text-sm font-semibold', colors[accent])}>{value}</span>
+    <div className="flex items-baseline justify-between py-3">
+      <dt className="text-sm text-muted">{label}</dt>
+      <dd className="text-sm text-fg">
+        <span className="num font-medium">{value}</span>
+        {unit && <span className="ml-1 text-xs text-dim">{unit}</span>}
+      </dd>
     </div>
   )
 }

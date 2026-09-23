@@ -2,45 +2,103 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * 60 / 30 / 10 palette — Sage & Lime
+ *   60 — paper: base / card / subtle / line   (page, panels, hairlines)
+ *   30 — sage:  ink / on-ink / fg            (hero surface, text, structure)
+ *   10 — lime:  accent                        (fills: buttons, progress)
+ * `accent-strong` is the accent for text/borders: lime has no contrast on
+ * light backgrounds, so light mode uses a deep olive instead.
+ * `pos` is a tiny semantic green used only for status dots.
+ */
+
 :root,
-.dark {
-  --bg-base:    8 11 16;     /* #080B10 */
-  --bg-surface: 13 17 23;    /* #0D1117 */
-  --bg-card:    22 27 34;    /* #161B22 */
-  --bg-subtle:  28 33 40;    /* #1C2128 */
-  --line:       33 38 45;    /* #21262D */
-  --fg:         230 237 243; /* #E6EDF3 */
-  --fg-muted:   139 148 158; /* #8B949E */
-  --fg-dim:     72 79 88;    /* #484F58 */
-}
-
 .light {
-  --bg-base:    232 236 240; /* #E8ECF0 — page (softer off-white) */
-  --bg-surface: 242 244 247; /* #F2F4F7 — nested panels / header */
-  --bg-card:    253 253 254; /* #FDFDFE — raised card (near-white) */
-  --bg-subtle:  225 230 235; /* #E1E6EB — hover state */
-  --line:       208 215 222; /* #D0D7DE */
-  --fg:         31 35 40;    /* #1F2328 */
-  --fg-muted:   87 96 106;   /* #57606A */
-  --fg-dim:     110 119 129; /* #6E7781 */
+  --bg-base:       246 247 242; /* #F6F7F2 */
+  --bg-card:       255 255 255; /* #FFFFFF */
+  --bg-subtle:     240 242 234; /* #F0F2EA */
+  --line:          226 229 218; /* #E2E5DA */
+
+  --ink:           232 237 219; /* #E8EDDB */
+  --ink-line:      210 217 193; /* #D2D9C1 */
+  --on-ink:        27 31 24;    /* #1B1F18 */
+  --on-ink-muted:  92 100 84;   /* #5C6454 */
+
+  --fg:            27 31 24;    /* #1B1F18 */
+  --fg-muted:      94 102 88;   /* #5E6658 */
+  --fg-dim:        136 143 128; /* #888F80 */
+
+  --accent:        198 244 50;  /* #C6F432 */
+  --accent-fg:     27 31 24;    /* #1B1F18 */
+  --accent-strong: 77 107 0;    /* #4D6B00 */
+  --pos:           5 150 105;   /* #059669 */
 }
 
-/* Raised cards get a subtle shadow in light mode so they read as
-   separated from the page. Dark mode uses border + bg contrast instead. */
-.light .bg-card {
-  box-shadow:
-    0 1px 2px 0 rgb(15 20 30 / 0.04),
-    0 4px 12px -2px rgb(15 20 30 / 0.06);
+.dark {
+  --bg-base:       18 20 18;    /* #121412 */
+  --bg-card:       24 27 24;    /* #181B18 */
+  --bg-subtle:     32 36 31;    /* #20241F */
+  --line:          44 49 43;    /* #2C312B */
+
+  --ink:           30 35 29;    /* #1E231D */
+  --ink-line:      52 59 50;    /* #343B32 */
+  --on-ink:        236 238 230; /* #ECEEE6 */
+  --on-ink-muted:  152 160 148; /* #98A094 */
+
+  --fg:            236 238 230; /* #ECEEE6 */
+  --fg-muted:      160 167 155; /* #A0A79B */
+  --fg-dim:        117 124 113; /* #757C71 */
+
+  --accent:        198 244 50;  /* #C6F432 */
+  --accent-fg:     20 24 16;    /* #141810 */
+  --accent-strong: 198 244 50;  /* #C6F432 */
+  --pos:           52 211 153;  /* #34D399 */
 }
 
 body {
   color: rgb(var(--fg));
   background: rgb(var(--bg-base));
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  font-feature-settings: "ss01", "cv11";
+}
+
+::selection {
+  background: rgb(var(--accent) / 0.25);
+}
+
+/* Wallet adapter button — restyled to the accent */
+.wallet-adapter-button-trigger,
+.wallet-adapter-button {
+  height: 36px !important;
+  padding: 0 14px !important;
+  border-radius: 8px !important;
+  font-family: var(--font-geist-sans), system-ui, sans-serif !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  line-height: 1 !important;
+}
+.wallet-adapter-button-trigger {
+  background: rgb(var(--accent)) !important;
+  color: rgb(var(--accent-fg)) !important;
+}
+.wallet-adapter-button-trigger:not([disabled]):hover {
+  background: rgb(var(--accent) / 0.88) !important;
+}
+.wallet-adapter-button-start-icon {
+  width: 16px !important;
+  height: 16px !important;
+  margin-right: 8px !important;
 }
 
 @layer utilities {
   .text-balance {
     text-wrap: balance;
+  }
+  .num {
+    font-variant-numeric: tabular-nums;
+  }
+  .addr {
+    font-family: var(--font-geist-mono), ui-monospace, monospace;
+    font-size: 0.95em;
   }
 }

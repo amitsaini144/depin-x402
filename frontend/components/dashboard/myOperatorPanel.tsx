@@ -10,7 +10,8 @@ import {
   SETTLEMENT_PROGRAM_ID, REWARD_MINT,
   currentEpoch, epochToBuffer, derivePDA,
 } from '@/hooks/useDepinData'
-import { Wallet, Trophy, AlertCircle, CheckCircle, Clock, Zap } from 'lucide-react'
+import { Wallet, UserX, Check } from 'lucide-react'
+import { Panel, PanelHeader, shortAddr } from '@/components/ui/panel'
 import clsx from 'clsx'
 
 const CLAIM_IDL = {
@@ -61,7 +62,7 @@ export function MyOperatorPanel({ operator, myStats, onRefresh }: MyOperatorPane
   const handleClaim = async () => {
     if (!publicKey || !signTransaction || !signAllTransactions || !myStats) return
     setClaiming(true)
-    setClaimMsg('Preparing...')
+    setClaimMsg('Preparing…')
     try {
       const epoch = myStats.epoch
       const statsPDA = derivePDA(
@@ -77,7 +78,7 @@ export function MyOperatorPanel({ operator, myStats, onRefresh }: MyOperatorPane
       const idl: Idl = { ...CLAIM_IDL, address: SETTLEMENT_PROGRAM_ID.toBase58(), metadata: { name: CLAIM_IDL.name, version: CLAIM_IDL.version, spec: '0.1.0' } } as unknown as Idl
       const program  = new Program(idl, provider)
 
-      setClaimMsg('Awaiting wallet...')
+      setClaimMsg('Awaiting wallet…')
       const tx = await program.methods
         .claimRewards(new BN(epoch))
         .accounts({
@@ -91,46 +92,38 @@ export function MyOperatorPanel({ operator, myStats, onRefresh }: MyOperatorPane
         })
         .rpc()
 
-      setClaimMsg(`✅ Claimed! ${tx.slice(0, 8)}...`)
+      setClaimMsg(`Claimed · ${tx.slice(0, 8)}…`)
       await fetchRewardBal()
       onRefresh()
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Unknown error'
       setClaimMsg(
-        msg.includes('AlreadyClaimed')    ? '⚠ Already claimed this epoch'   :
-        msg.includes('EpochNotComplete')  ? '⚠ Epoch not complete yet'       :
-        `❌ ${msg.slice(0, 50)}`
+        msg.includes('AlreadyClaimed')    ? 'Already claimed this epoch'   :
+        msg.includes('EpochNotComplete')  ? 'Epoch not complete yet'       :
+        `Failed: ${msg.slice(0, 50)}`
       )
     } finally {
       setClaiming(false)
     }
   }
 
-  // Prompt wallet connect
   if (!publicKey) {
     return (
-      <div className="rounded-xl border border-line bg-card p-6 flex flex-col items-center justify-center gap-3 text-center min-h-[180px]">
-        <Wallet size={28} className="text-dim" />
-        <div>
-          <p className="font-mono text-sm text-muted">Connect your wallet</p>
-          <p className="font-mono text-[11px] text-dim mt-1">to view your operator data and claim rewards</p>
-        </div>
-      </div>
+      <EmptyState
+        icon={<Wallet size={20} />}
+        title="Connect your wallet"
+        body="See your stake, vault and epoch activity, and claim rewards."
+      />
     )
   }
 
-  // Wallet connected but not an operator
   if (!operator) {
     return (
-      <div className="rounded-xl border border-line bg-card p-6 flex flex-col items-center justify-center gap-3 text-center min-h-[180px]">
-        <AlertCircle size={28} className="text-[#FFB800]" />
-        <div>
-          <p className="font-mono text-sm text-muted">Not registered as operator</p>
-          <p className="font-mono text-[11px] text-dim mt-1">
-            {publicKey.toBase58().slice(0, 12)}...{publicKey.toBase58().slice(-6)}
-          </p>
-        </div>
-      </div>
+      <EmptyState
+        icon={<UserX size={20} />}
+        title="This wallet isn't a registered operator"
+        body={<span className="addr">{shortAddr(publicKey.toBase58(), 8, 6)}</span>}
+      />
     )
   }
 
@@ -140,119 +133,122 @@ export function MyOperatorPanel({ operator, myStats, onRefresh }: MyOperatorPane
   const rewardAmount = myStats ? myStats.paymentCount * 1 : 0 // 1 reward token per tx
 
   return (
-    <div className="rounded-xl border border-line bg-card overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-line">
-        <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-[#00FF88] animate-pulse-slow" />
-          <h2 className="font-mono text-sm font-semibold text-fg">My Operator</h2>
-        </div>
-        <span className="font-mono text-[10px] px-2 py-0.5 rounded-md bg-[#00FF8815] text-[#00FF88]">
-          Active
-        </span>
+    <Panel>
+      <PanelHeader
+        title="My operator"
+        meta={
+          <span className="inline-flex items-center gap-1.5 text-fg">
+            <span className="h-2 w-2 rounded-full bg-pos" /> Active
+          </span>
+        }
+      />
+
+      {/* Endpoint */}
+      <div className="px-5 pt-5">
+        <p className="text-xs text-muted">Endpoint</p>
+        <p className="mt-1 text-[15px] font-medium text-fg truncate">{operator.endpointUrl}</p>
       </div>
 
-      <div className="p-4 space-y-4">
-        {/* Operator info row */}
-        <div className="grid grid-cols-2 gap-3">
-          <StatBox label="Stake" value={`${(operator.stake / 1_000_000).toFixed(2)} USDC`} accent="green" />
-          <StatBox label="Vault" value={`${operator.vaultBalance?.toFixed(2) ?? '—'} USDC`} accent="cyan" />
-          <StatBox label="Region" value={operator.region} accent="cyan" />
-          <StatBox label="Registered" value={new Date(operator.registeredAt * 1000).toLocaleDateString()} accent="cyan" />
-        </div>
+      {/* Key figures */}
+      <dl className="mx-5 mt-5 grid grid-cols-2 sm:grid-cols-4 gap-y-4 border-y border-line py-4">
+        <Figure label="Stake"      value={(operator.stake / 1_000_000).toFixed(2)} unit="USDC" />
+        <Figure label="Vault"      value={operator.vaultBalance?.toFixed(2) ?? '—'} unit="USDC" />
+        <Figure label="Region"     value={operator.region} plain />
+        <Figure label="Registered" value={new Date(operator.registeredAt * 1000).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })} plain />
+      </dl>
 
-        {/* Endpoint */}
-        <div className="rounded-lg bg-surface border border-line px-3 py-2">
-          <p className="font-mono text-[10px] text-dim mb-1 uppercase tracking-widest">Endpoint</p>
-          <p className="font-mono text-xs text-[#00E5FF] truncate">{operator.endpointUrl}</p>
-        </div>
-
-        {/* Epoch stats + claim */}
-        <div className="rounded-lg bg-surface border border-line p-3">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-1.5">
-              <Clock size={12} className="text-muted" />
-              <span className="font-mono text-[10px] text-muted uppercase tracking-widest">
-                Epoch {prevEpoch} stats
-              </span>
-            </div>
-            {myStats?.rewardsClaimed && (
-              <span className="flex items-center gap-1 font-mono text-[10px] text-[#00FF88]">
-                <CheckCircle size={10} /> Claimed
-              </span>
-            )}
-          </div>
-
-          {myStats ? (
-            <div className="grid grid-cols-2 gap-3 mb-3">
-              <div>
-                <p className="font-mono text-[10px] text-dim">Payments</p>
-                <p className="font-mono text-lg font-bold text-fg">{myStats.paymentCount}</p>
-              </div>
-              <div>
-                <p className="font-mono text-[10px] text-dim">Volume</p>
-                <p className="font-mono text-lg font-bold text-fg">
-                  {(myStats.volume / 1_000_000).toFixed(4)}
-                  <span className="text-[10px] text-dim ml-1">USDC</span>
-                </p>
-              </div>
-            </div>
-          ) : (
-            <p className="font-mono text-xs text-dim mb-3">No activity recorded for epoch {prevEpoch}</p>
-          )}
-
-          {/* Claim button */}
-          <button
-            onClick={handleClaim}
-            disabled={!canClaim || claiming}
-            className={clsx(
-              'w-full flex items-center justify-center gap-2 py-2 px-4 rounded-lg',
-              'font-mono text-xs font-semibold transition-all duration-150',
-              canClaim && !claiming
-                ? 'bg-gradient-to-r from-[#00E5FF20] to-[#00FF8820] border border-[#00FF8840] text-[#00FF88] hover:from-[#00E5FF30] hover:to-[#00FF8830] hover:border-[#00FF88]'
-                : 'bg-line border border-line text-dim cursor-not-allowed'
-            )}
-          >
-            <Zap size={12} />
-            {claiming ? claimMsg ?? 'Claiming...'
-              : myStats?.rewardsClaimed ? `Already claimed (epoch ${prevEpoch})`
-              : !myStats || myStats.paymentCount === 0 ? 'No rewards to claim'
-              : `Claim ~${rewardAmount} reward tokens`}
-          </button>
-
-          {!claiming && claimMsg && (
-            <p className="font-mono text-[11px] text-muted text-center mt-2">{claimMsg}</p>
-          )}
-        </div>
-
-        {/* Reward balance */}
-        <div
-          className="rounded-lg bg-surface border border-line px-3 py-2 cursor-pointer hover:border-line transition-colors"
-          onClick={fetchRewardBal}
-        >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5">
-              <Trophy size={12} className="text-[#FFB800]" />
-              <span className="font-mono text-[10px] text-muted uppercase tracking-widest">Reward Balance</span>
-            </div>
-            <span className="font-mono text-xs text-fg">
-              {rewardBal !== null ? `${rewardBal} tokens` : 'Click to fetch'}
+      {/* Epoch stats + claim */}
+      <div className="px-5 py-5">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-medium text-fg">
+            Epoch <span className="num">{prevEpoch.toLocaleString()}</span>
+          </h3>
+          {myStats?.rewardsClaimed && (
+            <span className="inline-flex items-center gap-1 text-xs text-muted">
+              <Check size={13} className="text-pos" /> Rewards claimed
             </span>
-          </div>
+          )}
         </div>
+
+        {myStats ? (
+          <div className="mt-3 grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-xs text-muted">Payments</p>
+              <p className="num mt-1 text-2xl font-medium text-fg">{myStats.paymentCount}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted">Volume</p>
+              <p className="mt-1 text-fg">
+                <span className="num text-2xl font-medium">{(myStats.volume / 1_000_000).toFixed(4)}</span>
+                <span className="ml-1 text-xs text-dim">USDC</span>
+              </p>
+            </div>
+          </div>
+        ) : (
+          <p className="mt-2 text-sm text-muted">No activity recorded for this epoch.</p>
+        )}
+
+        <button
+          onClick={handleClaim}
+          disabled={!canClaim || claiming}
+          className={clsx(
+            'mt-5 w-full h-11 rounded-lg text-sm font-medium transition-colors',
+            canClaim && !claiming
+              ? 'bg-accent text-accent-fg hover:bg-accent/90'
+              : 'bg-subtle text-muted cursor-not-allowed'
+          )}
+        >
+          {claiming ? claimMsg ?? 'Claiming…'
+            : myStats?.rewardsClaimed ? 'Already claimed'
+            : !myStats || myStats.paymentCount === 0 ? 'No rewards to claim'
+            : `Claim ${rewardAmount} reward ${rewardAmount === 1 ? 'token' : 'tokens'}`}
+        </button>
+
+        {!claiming && claimMsg && (
+          <p className="mt-2 text-xs text-muted text-center">{claimMsg}</p>
+        )}
       </div>
+
+      {/* Reward balance */}
+      <div className="flex items-center justify-between px-5 py-4 border-t border-line bg-subtle/40">
+        <span className="text-sm text-muted">Reward balance</span>
+        {rewardBal !== null ? (
+          <span className="text-sm text-fg">
+            <span className="num font-medium">{rewardBal}</span>
+            <span className="ml-1 text-xs text-dim">tokens</span>
+          </span>
+        ) : (
+          <button onClick={fetchRewardBal} className="text-sm font-medium text-accent-strong hover:underline underline-offset-4">
+            Check balance
+          </button>
+        )}
+      </div>
+    </Panel>
+  )
+}
+
+function Figure({ label, value, unit, plain }: { label: string; value: string; unit?: string; plain?: boolean }) {
+  return (
+    <div className="min-w-0 pr-3">
+      <dt className="text-xs text-muted">{label}</dt>
+      <dd className="mt-1 text-fg truncate">
+        <span className={clsx('font-medium', plain ? 'text-sm' : 'num text-base')}>{value}</span>
+        {unit && <span className="ml-1 text-xs text-dim">{unit}</span>}
+      </dd>
     </div>
   )
 }
 
-function StatBox({ label, value, accent }: { label: string; value: string; accent: 'cyan' | 'green' }) {
+function EmptyState({ icon, title, body }: { icon: React.ReactNode; title: string; body: React.ReactNode }) {
   return (
-    <div className="rounded-lg bg-surface border border-line px-3 py-2">
-      <p className="font-mono text-[10px] text-dim uppercase tracking-widest">{label}</p>
-      <p className={clsx(
-        'font-mono text-sm font-semibold mt-0.5 truncate',
-        accent === 'cyan' ? 'text-[#00E5FF]' : 'text-[#00FF88]'
-      )}>{value}</p>
-    </div>
+    <Panel className="flex flex-col items-center justify-center gap-3 text-center px-6 py-16">
+      <div className="h-10 w-10 rounded-full bg-subtle text-muted inline-flex items-center justify-center">
+        {icon}
+      </div>
+      <div>
+        <p className="text-sm font-medium text-fg">{title}</p>
+        <p className="mt-1 text-xs text-muted">{body}</p>
+      </div>
+    </Panel>
   )
 }

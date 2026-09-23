@@ -6,7 +6,8 @@ import { PublicKey } from '@solana/web3.js'
 import { Program, AnchorProvider, BN, Idl } from '@coral-xyz/anchor'
 import { getAssociatedTokenAddress, TOKEN_PROGRAM_ID, createAssociatedTokenAccountInstruction } from '@solana/spl-token'
 import { OperatorRecord, REGISTRY_PROGRAM_ID, USDC_MINT, currentEpoch, epochToBuffer, derivePDA, SETTLEMENT_PROGRAM_ID } from '@/hooks/useDepinData'
-import { Shield, ShieldOff, ExternalLink, Sword, ChevronUp, ChevronDown } from 'lucide-react'
+import { ArrowUpRight, ChevronUp, ChevronDown } from 'lucide-react'
+import { Panel, PanelHeader, shortAddr } from '@/components/ui/panel'
 import clsx from 'clsx'
 import REGISTRY_IDL from '@/idl/operator_registry.json'
 
@@ -43,7 +44,7 @@ export function OperatorsTable({ operators, onRefresh }: OperatorsTableProps) {
     const target = currentEpoch() - 1
 
     setSlashing(op.authority)
-    setSlashMsg(m => ({ ...m, [op.authority]: 'Checking epoch...' }))
+    setSlashMsg(m => ({ ...m, [op.authority]: 'Checking epoch…' }))
 
     try {
       // Check if stats PDA exists
@@ -60,7 +61,7 @@ export function OperatorsTable({ operators, onRefresh }: OperatorsTableProps) {
       )
       const slashExists = await connection.getAccountInfo(slashRecordPDA)
       if (slashExists) {
-        setSlashMsg(m => ({ ...m, [op.authority]: '⚠ Already slashed this epoch' }))
+        setSlashMsg(m => ({ ...m, [op.authority]: 'Already slashed this epoch' }))
         setSlashing(null)
         return
       }
@@ -78,7 +79,7 @@ export function OperatorsTable({ operators, onRefresh }: OperatorsTableProps) {
       const provider = new AnchorProvider(connection, wallet, { commitment: 'confirmed' })
       const program  = new Program(REGISTRY_IDL as Idl, provider)
 
-      setSlashMsg(m => ({ ...m, [op.authority]: 'Sending tx...' }))
+      setSlashMsg(m => ({ ...m, [op.authority]: 'Sending transaction…' }))
 
       const tx = await (program.methods as unknown as {
         slashOperator: (epoch: BN) => {
@@ -102,174 +103,137 @@ export function OperatorsTable({ operators, onRefresh }: OperatorsTableProps) {
         .preInstructions(preIxs)
         .rpc()
 
-      setSlashMsg(m => ({ ...m, [op.authority]: `✅ Slashed! ${tx.slice(0, 8)}...` }))
+      setSlashMsg(m => ({ ...m, [op.authority]: `Slashed · ${tx.slice(0, 8)}…` }))
       setTimeout(onRefresh, 2000)
     } catch (e: unknown) {
       console.error('Slash error', e)
       const msg = e instanceof Error ? e.message : 'Unknown error'
-      const clean = msg.includes('HasPayments')       ? '⚠ Had payments this epoch'
-                  : msg.includes('AlreadySlashed')    ? '⚠ Already slashed'
-                  : msg.includes('EpochNotComplete')  ? '⚠ Epoch not done yet'
-                  : msg.includes('EmptyVault')        ? '⚠ Vault empty'
-                  : `❌ ${msg.slice(0, 40)}`
+      const clean = msg.includes('HasPayments')       ? 'Had payments this epoch'
+                  : msg.includes('AlreadySlashed')    ? 'Already slashed'
+                  : msg.includes('EpochNotComplete')  ? 'Epoch not finished yet'
+                  : msg.includes('EmptyVault')        ? 'Vault is empty'
+                  : `Failed: ${msg.slice(0, 40)}`
       setSlashMsg(m => ({ ...m, [op.authority]: clean }))
     } finally {
       setSlashing(null)
     }
   }
 
+
   const SortIcon = ({ k }: { k: SortKey }) =>
     sortKey === k
-      ? sortAsc ? <ChevronUp size={12} /> : <ChevronDown size={12} />
-      : <ChevronDown size={12} className="opacity-20" />
+      ? sortAsc ? <ChevronUp size={13} /> : <ChevronDown size={13} />
+      : <ChevronDown size={13} className="opacity-30" />
+
+  const th = 'px-5 py-3 text-xs font-medium text-muted whitespace-nowrap'
+  const sortable = 'cursor-pointer select-none hover:text-fg transition-colors'
+  const me = publicKey?.toBase58()
 
   return (
-    <div className="rounded-xl border border-line bg-card overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-line">
-        <h2 className="font-mono text-sm font-semibold text-fg">
-          Network Operators
-        </h2>
-        <span className="font-mono text-[10px] text-dim">
-          {operators.filter(o => o.active).length} active / {operators.length} total
-        </span>
-      </div>
+    <Panel>
+      <PanelHeader
+        title="Operators"
+        meta={<><span className="num text-fg">{operators.filter(o => o.active).length}</span> active of <span className="num">{operators.length}</span></>}
+      />
 
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
-          <thead>
+          <thead className="bg-subtle/50">
             <tr className="border-b border-line">
-              <th className="text-left px-4 py-2.5 font-mono text-[10px] text-dim uppercase tracking-widest">
-                Status
+              <th className={clsx(th, 'text-left')}>Operator</th>
+              <th className={clsx(th, 'text-left', sortable)} onClick={() => handleSort('region')}>
+                <span className="inline-flex items-center gap-1">Region <SortIcon k="region" /></span>
               </th>
-              <th className="text-left px-4 py-2.5 font-mono text-[10px] text-dim uppercase tracking-widest">
-                Endpoint
+              <th className={clsx(th, 'text-right', sortable)} onClick={() => handleSort('stake')}>
+                <span className="inline-flex items-center gap-1">Stake <SortIcon k="stake" /></span>
               </th>
-              <th
-                className="text-left px-4 py-2.5 font-mono text-[10px] text-dim uppercase tracking-widest cursor-pointer hover:text-muted"
-                onClick={() => handleSort('region')}
-              >
-                <span className="flex items-center gap-1">Region <SortIcon k="region" /></span>
+              <th className={clsx(th, 'text-right')}>Vault</th>
+              <th className={clsx(th, 'text-right', sortable)} onClick={() => handleSort('registeredAt')}>
+                <span className="inline-flex items-center gap-1">Joined <SortIcon k="registeredAt" /></span>
               </th>
-              <th
-                className="text-right px-4 py-2.5 font-mono text-[10px] text-dim uppercase tracking-widest cursor-pointer hover:text-muted"
-                onClick={() => handleSort('stake')}
-              >
-                <span className="flex items-center justify-end gap-1">Stake <SortIcon k="stake" /></span>
-              </th>
-              <th className="text-right px-4 py-2.5 font-mono text-[10px] text-dim uppercase tracking-widest">
-                Vault
-              </th>
-              <th
-                className="text-right px-4 py-2.5 font-mono text-[10px] text-dim uppercase tracking-widest cursor-pointer hover:text-muted"
-                onClick={() => handleSort('registeredAt')}
-              >
-                <span className="flex items-center justify-end gap-1">Joined <SortIcon k="registeredAt" /></span>
-              </th>
-              <th className="text-right px-4 py-2.5 font-mono text-[10px] text-dim uppercase tracking-widest">
-                Action
-              </th>
+              <th className={clsx(th, 'text-right')}><span className="sr-only">Action</span></th>
             </tr>
           </thead>
-          <tbody>
-            {sorted.map((op, i) => (
-              <tr
-                key={op.pubkey}
-                className={clsx(
-                  'border-b border-line last:border-0 transition-colors duration-100',
-                  'hover:bg-subtle',
-                  !op.active && 'opacity-50'
-                )}
-                style={{ animationDelay: `${i * 30}ms` }}
-              >
-                <td className="px-4 py-3">
-                  <div className="flex items-center gap-2">
-                    {op.active
-                      ? <><div className="w-1.5 h-1.5 rounded-full bg-[#00FF88] animate-pulse-slow" /><Shield size={12} className="text-[#00FF88]" /></>
-                      : <><div className="w-1.5 h-1.5 rounded-full bg-dim" /><ShieldOff size={12} className="text-dim" /></>
-                    }
+          <tbody className="divide-y divide-line">
+            {sorted.map(op => (
+              <tr key={op.pubkey} className="hover:bg-subtle/60 transition-colors">
+                <td className="px-5 py-4">
+                  <div className="flex items-start gap-3">
+                    <span
+                      className={clsx('mt-1.5 h-2 w-2 rounded-full shrink-0', op.active ? 'bg-pos' : 'bg-line')}
+                      title={op.active ? 'Active' : 'Inactive'}
+                    />
+                    <div className="min-w-0">
+                      <a
+                        href={op.endpointUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={clsx(
+                          'group inline-flex items-center gap-1 max-w-[240px] font-medium hover:text-accent-strong transition-colors',
+                          op.active ? 'text-fg' : 'text-muted'
+                        )}
+                      >
+                        <span className="truncate">{op.endpointUrl.replace(/^https?:\/\//, '')}</span>
+                        <ArrowUpRight size={13} className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </a>
+                      <div className="mt-0.5 flex items-center gap-2 text-xs text-muted">
+                        <span className="addr">{shortAddr(op.authority)}</span>
+                        {!op.active && <span>· Inactive</span>}
+                        {op.authority === me && <span className="text-accent-strong font-medium">· You</span>}
+                      </div>
+                    </div>
                   </div>
                 </td>
-                <td className="px-4 py-3">
-                  <div className="flex items-center gap-1.5">
-                    <span className="font-mono text-xs text-fg truncate max-w-[160px]">
-                      {op.endpointUrl}
-                    </span>
-                    <a
-                      href={op.endpointUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-dim hover:text-[#00E5FF] transition-colors"
-                    >
-                      <ExternalLink size={10} />
-                    </a>
-                  </div>
-                  <div className="font-mono text-[10px] text-dim mt-0.5">
-                    {op.authority.slice(0, 8)}...{op.authority.slice(-4)}
-                  </div>
+                <td className="px-5 py-4 text-muted whitespace-nowrap">{op.region}</td>
+                <td className="px-5 py-4 text-right whitespace-nowrap">
+                  <span className="num text-fg">{(op.stake / 1_000_000).toFixed(2)}</span>
+                  <span className="ml-1 text-xs text-dim">USDC</span>
                 </td>
-                <td className="px-4 py-3">
-                  <span className="font-mono text-xs px-2 py-0.5 rounded-md bg-line text-muted">
-                    {op.region}
-                  </span>
-                </td>
-                <td className="px-4 py-3 text-right">
-                  <span className="font-mono text-xs text-fg">
-                    {(op.stake / 1_000_000).toFixed(2)}
-                  </span>
-                  <span className="font-mono text-[10px] text-dim ml-1">USDC</span>
-                </td>
-                <td className="px-4 py-3 text-right">
-                  <span className={clsx(
-                    'font-mono text-xs',
-                    (op.vaultBalance ?? 0) > 0 ? 'text-[#00FF88]' : 'text-dim'
-                  )}>
+                <td className="px-5 py-4 text-right whitespace-nowrap">
+                  <span className={clsx('num', (op.vaultBalance ?? 0) > 0 ? 'text-fg' : 'text-dim')}>
                     {op.vaultBalance?.toFixed(2) ?? '—'}
                   </span>
                 </td>
-                <td className="px-4 py-3 text-right">
-                  <span className="font-mono text-[10px] text-dim">
-                    {new Date(op.registeredAt * 1000).toLocaleDateString()}
-                  </span>
+                <td className="px-5 py-4 text-right whitespace-nowrap text-muted">
+                  {new Date(op.registeredAt * 1000).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}
                 </td>
-                <td className="px-4 py-3 text-right">
-                  {publicKey && op.active && op.authority !== publicKey.toBase58() ? (
-                    <div className="flex flex-col items-end gap-1">
+                <td className="px-5 py-4 text-right">
+                  {publicKey && op.active && op.authority !== me ? (
+                    <div className="flex flex-col items-end gap-1.5">
                       <button
                         onClick={() => handleSlash(op)}
                         disabled={slashing === op.authority}
                         className={clsx(
-                          'flex items-center gap-1 px-2.5 py-1 rounded-lg border text-[10px] font-mono font-semibold transition-all duration-150',
-                          'border-[#FF3B5C40] text-[#FF3B5C] hover:bg-[#FF3B5C15] hover:border-[#FF3B5C]',
-                          slashing === op.authority && 'opacity-50 cursor-not-allowed'
+                          'h-8 px-3 rounded-lg border border-accent-strong/40 text-xs font-medium text-accent-strong',
+                          'hover:bg-accent hover:text-accent-fg hover:border-accent transition-colors',
+                          'disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-accent-strong'
                         )}
                       >
-                        <Sword size={10} />
-                        {slashing === op.authority ? 'Slashing...' : 'Slash'}
+                        {slashing === op.authority ? 'Slashing…' : 'Slash'}
                       </button>
                       {slashMsg[op.authority] && (
-                        <span className="font-mono text-[9px] text-muted max-w-[120px] text-right">
+                        <span className="text-[11px] text-muted max-w-[160px] text-right leading-snug">
                           {slashMsg[op.authority]}
                         </span>
                       )}
                     </div>
                   ) : (
-                    <span className="font-mono text-[10px] text-dim">
-                      {!publicKey ? '—' : op.authority === publicKey.toBase58() ? 'You' : '—'}
-                    </span>
+                    <span className="text-dim">—</span>
                   )}
                 </td>
               </tr>
             ))}
             {operators.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-center font-mono text-xs text-dim">
-                  No operators registered
+                <td colSpan={6} className="px-5 py-12 text-center">
+                  <p className="text-sm text-fg">No operators registered</p>
+                  <p className="mt-1 text-xs text-muted">Registered operators will appear here.</p>
                 </td>
               </tr>
             )}
           </tbody>
         </table>
       </div>
-    </div>
+    </Panel>
   )
 }

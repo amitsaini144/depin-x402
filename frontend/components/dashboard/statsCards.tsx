@@ -1,89 +1,57 @@
 'use client'
 
 import { OperatorRecord, SlashRecord } from '@/hooks/useDepinData'
-import { Users, Zap, Sword, TrendingUp } from 'lucide-react'
+import clsx from 'clsx'
 
 interface StatsCardsProps {
-  operators:   OperatorRecord[]
+  operators:    OperatorRecord[]
   slashRecords: SlashRecord[]
 }
 
 export function StatsCards({ operators, slashRecords }: StatsCardsProps) {
-  const activeCount   = operators.filter(o => o.active).length
-  const totalStake    = operators.reduce((s, o) => s + o.stake, 0) / 1_000_000
-  const totalVolume   = operators.reduce((s, o) => s + o.totalVolume, 0) / 1_000_000
-  const totalSlashes  = slashRecords.length
-  const slashTotal    = slashRecords.reduce((s, r) => s + r.slashAmount, 0) / 1_000_000
+  const activeCount  = operators.filter(o => o.active).length
+  const totalStake   = operators.reduce((s, o) => s + o.stake, 0) / 1_000_000
+  const totalVolume  = operators.reduce((s, o) => s + o.totalVolume, 0) / 1_000_000
+  const totalSlashes = slashRecords.length
+  const slashTotal   = slashRecords.reduce((s, r) => s + r.slashAmount, 0) / 1_000_000
 
-  const cards = [
-    {
-      label:   'Active Operators',
-      value:   activeCount.toString(),
-      sub:     `${operators.length} total registered`,
-      icon:    <Users size={16} />,
-      color:   'cyan',
-      glow:    'border-glow-cyan',
-    },
-    {
-      label:   'Total Staked',
-      value:   `${totalStake.toFixed(2)} USDC`,
-      sub:     'locked in vaults',
-      icon:    <TrendingUp size={16} />,
-      color:   'green',
-      glow:    'border-glow-green',
-    },
-    {
-      label:   'Network Volume',
-      value:   `${totalVolume.toFixed(4)} USDC`,
-      sub:     'total settled',
-      icon:    <Zap size={16} />,
-      color:   'cyan',
-      glow:    'border-glow-cyan',
-    },
-    {
-      label:   'Slash Events',
-      value:   totalSlashes.toString(),
-      sub:     `${slashTotal.toFixed(4)} USDC slashed`,
-      icon:    <Sword size={16} />,
-      color:   'red',
-      glow:    'border-glow-red',
-    },
+  const stats = [
+    { label: 'Active operators', value: activeCount.toString(),  unit: '',     sub: `of ${operators.length} registered` },
+    { label: 'Total staked',     value: totalStake.toFixed(2),   unit: 'USDC', sub: 'locked in vaults' },
+    { label: 'Network volume',   value: totalVolume.toFixed(4),  unit: 'USDC', sub: 'settled on-chain' },
+    { label: 'Slash events',     value: totalSlashes.toString(), unit: '',     sub: `${slashTotal.toFixed(4)} USDC slashed` },
   ]
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-      {cards.map((card, i) => (
-        <div
-          key={i}
-          className={`relative rounded-xl border bg-card p-4 overflow-hidden animate-slide-up ${card.glow}`}
-          style={{ animationDelay: `${i * 60}ms` }}
-        >
-          {/* Background glow */}
-          <div className={`absolute -top-6 -right-6 w-20 h-20 rounded-full blur-2xl opacity-20 ${
-            card.color === 'cyan' ? 'bg-[#00E5FF]' :
-            card.color === 'green' ? 'bg-[#00FF88]' : 'bg-[#FF3B5C]'
-          }`} />
+    <section className="mx-auto max-w-6xl px-4 sm:px-6 pt-6 sm:pt-8">
+      <div className="rounded-2xl bg-ink px-5 sm:px-8 pt-8 pb-7">
+        <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-on-ink text-balance">
+          Operator network
+        </h1>
+        <p className="mt-1.5 text-sm text-on-ink-muted max-w-xl">
+          Staked operators settle x402 micropayments on Solana. Idle for a full epoch, and anyone can slash 10% of the vault.
+        </p>
 
-          <div className="relative">
-            <div className={`inline-flex p-1.5 rounded-lg mb-3 ${
-              card.color === 'cyan'  ? 'bg-[#00E5FF15] text-[#00E5FF]' :
-              card.color === 'green' ? 'bg-[#00FF8815] text-[#00FF88]' :
-                                       'bg-[#FF3B5C15] text-[#FF3B5C]'
-            }`}>
-              {card.icon}
+        <dl className="mt-8 grid grid-cols-2 lg:grid-cols-4 gap-y-6 border-t border-ink-line pt-5">
+          {stats.map((s, i) => (
+            <div
+              key={s.label}
+              className={clsx(
+                'min-w-0 pr-4',
+                i % 2 === 1 && 'pl-4 border-l border-ink-line',
+                i === 2 && 'lg:pl-4 lg:border-l lg:border-ink-line',
+              )}
+            >
+              <dt className="text-xs text-on-ink-muted">{s.label}</dt>
+              <dd className="mt-2 flex items-baseline gap-1.5">
+                <span className="num text-2xl sm:text-[28px] font-medium text-on-ink truncate">{s.value}</span>
+                {s.unit && <span className="text-xs text-on-ink-muted">{s.unit}</span>}
+              </dd>
+              <dd className="mt-1 text-xs text-on-ink-muted">{s.sub}</dd>
             </div>
-            <div className="font-mono text-xl font-bold text-fg mb-0.5 truncate">
-              {card.value}
-            </div>
-            <div className="font-mono text-[10px] text-muted uppercase tracking-widest">
-              {card.label}
-            </div>
-            <div className="font-mono text-[10px] text-dim mt-1">
-              {card.sub}
-            </div>
-          </div>
-        </div>
-      ))}
-    </div>
+          ))}
+        </dl>
+      </div>
+    </section>
   )
 }
